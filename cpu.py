@@ -10,9 +10,9 @@ class CPU:
         self.ram = [0] * 256 # 256 bytes of memory
         self.reg = [0] * 8 # 8 general purpose registers
         self.pc = 0 # Program Counter
-        self.reg[-1] = 0xF4
-        self.SP = 7
-        self.fl = 0
+        self.reg[-1] = 0xF4 # Set the value of the last register to top of stack
+        self.SP = 7 # this variable holds the stack pointer
+        self.fl = 0 # this is the flag register for the CMP instruction
 
     def ram_read(self,MAR): # Memory Address Register
         return self.ram[MAR] # register used for addresses
@@ -91,7 +91,7 @@ class CPU:
             sys.exit()
 
 
-    def alu(self, op, reg_a, reg_b):
+    def alu(self, op, reg_a, reg_b=None):
         """ALU operations."""
 
         if op == "ADD":
@@ -103,9 +103,35 @@ class CPU:
 
         elif op == "CMP":
             if self.reg[reg_a] == self.reg[reg_b]:
+                # Since the flag is initialized to 0, we can update it here
                 self.fl = 1
+            else:
+                # if the comparison is false, set it back to 0
+                self.fl = 0
+
+        elif op == "AND":
+            self.reg[reg_a] = (self.reg[reg_a] & self.reg[reg_b])
+
+        elif op == "OR":
+            self.reg[reg_a] = (self.reg[reg_a] | self.reg[reg_b])
+
+        elif op == "XOR":
+            self.reg[reg_a] = (self.reg[reg_a] ^ self.reg[reg_b])
+
+        elif op == "NOT":
+            self.reg[reg_a] = ~self.reg[reg_a]
+
+        elif op == "SHL":
+            self.reg[reg_a] = (self.reg[reg_a] >> self.reg[reg_b])
+
+        elif op == "SHR":
+            self.reg[reg_a] = (self.reg[reg_a] << self.reg[reg_b])
+
+        elif op == "MOD":
+            self.reg[reg_a] = (self.reg[reg_a] % self.reg[reg_b])
 
         else:
+            # This will let us know if our emulator doesn't recognize something
             raise Exception("Unsupported ALU operation")
 
     def trace(self):
@@ -164,6 +190,40 @@ class CPU:
                 reg_num2 = operand_b
                 self.alu("CMP", reg_num1, reg_num2)
 
+            elif self.IR == 0b10101000: # AND
+                reg_num1 = operand_a
+                reg_num2 = operand_b
+                self.alu("AND", reg_num1, reg_num2)
+
+            elif self.IR == 0b10101010: # OR
+                reg_num1 = operand_a
+                reg_num2 = operand_b
+                self.alu("OR", reg_num1, reg_num2)
+
+            elif self.IR == 0b10101011: # XOR
+                reg_num1 = operand_a
+                reg_num2 = operand_b
+                self.alu("XOR", reg_num1, reg_num2)
+
+            elif self.IR == 0b01101001: # NOT
+                reg_num1 = operand_a
+                self.alu("NOT", reg_num1)
+
+            elif self.IR == 0b10101100: # SHL
+                reg_num1 = operand_a
+                reg_num2 = operand_b
+                self.alu("SHL", reg_num1, reg_num2)
+
+            elif self.IR == 0b10101101: # SHR
+                reg_num1 = operand_a
+                reg_num2 = operand_b
+                self.alu("SHL", reg_num1, reg_num2)
+
+            elif self.IR == 0b10100100: # MOD
+                reg_num1 = operand_a
+                reg_num2 = operand_b
+                self.alu("MOD", reg_num1, reg_num2)
+
             elif self.IR == 0b01010101: # Jump if equal
                 # if the flag is set to 1
                 if self.fl == 1:
@@ -172,24 +232,31 @@ class CPU:
                     reg_num = operand_a
 
                     self.pc = self.reg[reg_num]
+                # If the flag isn't set to 1, move the pc manually
                 else:
                     self.pc += 2
 
-            elif self.IR == 0b01010110:
+            elif self.IR == 0b01010110: # Jump if not equal
+                # if the flag is not set to 1
                 if self.fl != 1:
+                    # jump the pc counter to the given register address
                     reg_num = operand_a
                     self.pc = self.reg[reg_num]
+                # if the flag is set to 1
                 else:
+                    # manually move the pc
                     self.pc += 2
 
-            elif self.IR == 0b01010100:
+            elif self.IR == 0b01010100: # Jump
+                # Take the register from the next instruction
                 reg_num = operand_a
                 value = self.reg[reg_num]
+                # set the pc value to the value at the register's address
                 self.pc = value
 
 
 
-            elif self.IR == 0b00000001:
+            elif self.IR == 0b00000001: # Halt
                 self.hlt()
 
             elif self.IR == 0b01000101: # Push
@@ -232,11 +299,14 @@ class CPU:
                 self.pc = return_address
 
             else:
+                # Print this message if we get unrecognized instructions
                 print(f"Unknown Instruction {bin(self.IR)}")
                 self.hlt()
 
+            # this variable holds a boolean
             instructions_set_pc = (self.IR >> 4) & 1 == 1
             
+            # if the above boolean is false, we move the pc in this statement
             if not instructions_set_pc:
                 self.pc += pc_instructions + 1
 
@@ -245,16 +315,3 @@ class CPU:
         # print(self.fl)
         print("Program Ended")
         sys.exit(0)
-
-
-
-# program = [
-#             # From print8.ls8
-#          0  0b10000010, # LDI R0,8
-#          1  0b00000000, # NOP - Do nothing
-#          2  0b00001000, # Binary for 8
-#          3  0b01000111, # PRN R0
-#          4  0b00000000, # NOP - Do nothing
-#          5  0b00000001, # HLT
-#         ]
-
